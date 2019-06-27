@@ -1,0 +1,2 @@
+# puttysessmgr
+Putty Session Manager
