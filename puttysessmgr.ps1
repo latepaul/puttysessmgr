@@ -5,7 +5,6 @@
 
 [void] [System.Reflection.Assembly]::LoadWithPartialName("System.Drawing") 
 [void] [System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms")
-[void] [System.Reflection.Assembly]::LoadWithPartialName('Microsoft.VisualBasic')
 [void] [System.Windows.Forms.Application]::EnableVisualStyles()
 
 
@@ -71,8 +70,8 @@ param([System.Windows.Forms.TreeNodeCollection]$rootnode,
     else
     {
         write-host "Searching for node called $category"
-        $rootnode | % {"...Name: {0} Text: {1}" -f $_.Name, $_.Text }
-        $addto_node = $rootnode | ? {$_.Name -eq $category}
+        $rootnode | ForEach-Object {"...Name: {0} Text: {1}" -f $_.Name, $_.Text }
+        $addto_node = $rootnode | Where-Object {$_.Name -eq $category}
 
         if ($addto_node)
         {
@@ -121,7 +120,7 @@ $tree.Font = '"Consolas",10'
 $categories=@()
 $node_cats=@{}
 
-$sessions =  Get-ChildItem -Path Registry::HKEY_CURRENT_USER\Software\SimonTatham\PuTTY\Sessions  | % {split-path -leaf $_.Name}
+$sessions =  Get-ChildItem -Path Registry::HKEY_CURRENT_USER\Software\SimonTatham\PuTTY\Sessions  | ForEach-Object {split-path -leaf $_.Name}
 
 $i=0 
 foreach ($sess in $sessions) 
@@ -145,7 +144,7 @@ foreach ($sess in $sessions)
 
     $i +=1
 
-    $new_cat = $categories | ? {$_ -eq $cat }
+    $new_cat = $categories | Where-Object {$_ -eq $cat }
     if (-not $new_cat)
     {
     $categories += $cat
@@ -184,7 +183,7 @@ $close_btn.Font = '"Arial",10'
 $Form.Controls.Add($close_btn)
 
 $Form2 = New-Object system.Windows.Forms.Form
-$Form2.Size = New-Object System.Drawing.Size(300,120)
+$Form2.Size = New-Object System.Drawing.Size(320,130)
 $Form2.Text = "question"
 $Form2.FormBorderStyle='FixedDialog'
 
@@ -199,7 +198,7 @@ $Form2.Controls.Add($prompt_label)
 $Form2.Controls.Add($txtbox)
 
 $close_btn2 = New-Object System.Windows.Forms.Button
-$close_btn2.location = '150,60'
+$close_btn2.location = '140,55'
 $close_btn2.size = '40,25'
 $close_btn2.Text = 'OK'
 $close_btn2.Font = '"Arial",8'
