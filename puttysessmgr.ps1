@@ -14,7 +14,7 @@ function prompt{
           [string] $message,
           [string] $default)
     
-    $answer=$default
+
     $prompt_label.Text = $message
     $Form2.Text = $title
     $txtbox.Text = $default 
