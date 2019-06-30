@@ -6,24 +6,34 @@
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
+# cleanup - stuff we need to do when exiting
+# this is a function because we can be called from the close
+# button or by quitting the form
+function cleanup {
+    $form2.close()
+    $cat_list_form.Close()
+    $txtbox.remove_KeyDown($txtbox_KeyDown)
+}
+
+# choose_cat - choose a category
 function choose_cat {
 
     $cat_list_form.Topmost = $true
 
     $result = $cat_list_form.ShowDialog()
 
-    $x="other"
-    if ($result -eq [System.Windows.Forms.DialogResult]::OK)
-    {
+    $x = "other"
+    if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         $x = $cat_listBox.SelectedItem
-        if ($x -eq "new...")
-        {
-        $x = "other"
+        if ($x -eq "new...") {
+            $x = "other"
         }
     }
 
     return $x 
 }
+
+# prompt - ask a question
 function prompt {
     param([string] $title,
         [string] $message,
@@ -36,6 +46,8 @@ function prompt {
     [void] $Form2.ShowDialog() 
     return $txtbox.Text
 }
+
+# rightclick - when we right click on a node in the main treeview
 function rightclick {
     param([System.Windows.Forms.TreeNode]$node)
 
@@ -45,12 +57,12 @@ function rightclick {
     $nodetext = $node.Name
 
     $cat = $node_cats[$nodetext]
-    $orig_cat=$cat 
+    $orig_cat = $cat 
     if ($cat -eq 'none') {
         $cat = ''
     }
 
-    write-host "right-click on: $nodetext (cat=$cat)"
+    write-debug "right-click on: $nodetext (cat=$cat)"
 
     $chosen_cat = choose_cat
     if ($chosen_cat -eq "other") {
@@ -61,20 +73,52 @@ function rightclick {
     }
 
 
-    if ($chosen_cat -eq '' -or $chosen_cat -eq $orig_cat )
-    {
-    write-host "Not changing cat"
-    $has_changed=0
+    if ($chosen_cat -eq '' -or $chosen_cat -eq $orig_cat ) {
+        write-debug "Not changing cat"
+        $has_changed = 0
     }
-    else
-    {
-    Write-host "Change cat for $nodetext to $chosen_cat"
-    $has_changed=1
-    $node_cats[$nodetext] = $chosen_cat
+    else {
+        write-debug "Change cat for $nodetext to $chosen_cat"
+        $has_changed = 1
+        $node_cats[$nodetext] = $chosen_cat
+      
+        if ($global:categories -notcontains $chosen_cat) {
+            ForEach ($cat in $global:categories) {
+                $cat_listBox.Items.Remove($cat)
+            }
+            #$cat_listBox.Items.Remove("new...")
+            $global:categories += $chosen_cat
+
+            #$cat_listBox.Items.add("new...")
+            $cat_listBox.Items.Add("none")
+
+            # Favourites if it exists always comes first
+            if ($global:categories -contains "Favourites") {
+                $cat_listBox.Items.Add("Favourites")
+            }
+            
+            write-debug "List cats to re-add to form"
+            write-debug "unsorted:"
+            $global:categories | ForEach-Object {
+                write-debug "...category:$_"
+            }
+            write-debug "sorted:"
+            $global:categories | Sort-Object | ForEach-Object {
+                if ($_ -ne "Favourites" -and $_ -ne "none") {
+                    $cat_listBox.Items.Add($_)
+                    write-debug "...category: $_"
+                }
+                
+            }
+            
+            #$cat_list_form.Refresh()
+        }
+       
     }
     return $has_changed
 }
 
+# launch - launch putty for a session
 function launch {
     param([System.Windows.Forms.TreeNode]$node)
 
@@ -88,11 +132,12 @@ function launch {
         else {
             $cmd = '& ' + $putty_exe + ' -load ' + $sess_name
         }
-        write-host "Launching: $cmd"
+        write-debug "Launching: $cmd"
         & $putty_exe -load $sess_name
     }
 }
 
+# add a new node to the tree
 function add_node {
     param([System.Windows.Forms.TreeNodeCollection]$rootnode,
         [string] $category,
@@ -110,20 +155,20 @@ function add_node {
     }
     
     if ($category -eq 'none') {
-        Write-Host "$name has no category, adding to root node"
+        write-debug "$name has no category, adding to root node"
         [void] $rootnode.Add($newnode) 
     }
     else {
-        write-host "Searching for node called $category"
-        $rootnode | ForEach-Object { '...Name: {0} Text: {1}' -f $_.Name, $_.Text }
+        write-debug "Searching for node called $category"
+        $rootnode | ForEach-Object { write-debug "...Name: $_.Name Text: $_.Text" }
         $addto_node = $rootnode | Where-Object { $_.Name -eq $category }
 
         if ($addto_node) {
-            write-host "found node with $category - $addto_node.Name"
+            write-debug "found node with $category - $addto_node.Name"
             [void] $addto_node.Nodes.Add($newnode) 
         }
         else {
-            Write-Host 'adding new category node $category'
+            write-debug 'adding new category node $category'
             $newcatnode = New-Object System.Windows.Forms.TreeNode
             $newcatnode.Text = $category
             $newcatnode.Name = $category
@@ -136,23 +181,29 @@ function add_node {
     }
 }
 
+# main script
+$DebugPreference = "Continue"
+# path to putty
 $puttypath = 'C:\Program Files\PuTTY'
 $putty_exe = $puttypath + '\putty.exe'
 $putty_exe 
 
+# main form is $Form
 $Form = New-Object system.Windows.Forms.Form
 $Form.Size = New-Object System.Drawing.Size(400, 600)
 $Form.Text = 'Putty Session Launcher'
 $Form.Startposition = 'CenterScreen'
 
+# use the icon from the putty exe
 $putty_icon = [System.Drawing.Icon]::ExtractAssociatedIcon($putty_exe)
 if ($putty_icon) {
     $Form.Icon = $putty_icon
 }
 else {
-    Write-Host "No icon"
+    write-debug "No icon"
 }
 
+# $tree is the treeview
 $tree = New-Object System.Windows.Forms.TreeView
 
 $tree.Size = '370,500'
@@ -160,15 +211,15 @@ $tree.Location = '5,5'
 $tree.Text = 'Putty Sessions'
 $tree.Font = '"Consolas",10'
 
-$categories = @()
+$global:categories = @()
 $node_cats = @{ }
 
-$sessions = Get-ChildItem -Path Registry::HKEY_CURRENT_USER\Software\SimonTatham\PuTTY\Sessions | `
+$global:sessions = Get-ChildItem -Path Registry::HKEY_CURRENT_USER\Software\SimonTatham\PuTTY\Sessions | `
     ForEach-Object { split-path -leaf $_.Name } | `
     ForEach-Object { [uri]::UnescapeDataString($_) }
 
 $i = 0 
-foreach ($sess in $sessions) {
+foreach ($sess in $global:sessions) {
     if ($i -lt 5) {
         $cat = 'Favourites'
     } 
@@ -178,17 +229,17 @@ foreach ($sess in $sessions) {
 
     $i += 1
 
-    $new_cat = $categories | Where-Object { $_ -eq $cat }
+    $new_cat = $global:categories | Where-Object { $_ -eq $cat }
     if (-not $new_cat) {
-        $categories += $cat
+        $global:categories += $cat
     }
     $node_cats.add($sess, $cat) 
 }
 
 add_node $tree.Nodes 'none' 'Open Putty'
 $i = 0 
-foreach ($sess in $sessions) {
-    write-host "`nAdding node - Session=[$sess] cat=[$($node_cats[$sess])]"
+foreach ($sess in $global:sessions) {
+    write-debug "`nAdding node - Session=[$sess] cat=[$($node_cats[$sess])]"
     
     add_node $tree.Nodes  $($node_cats[$sess]) $sess
     $i += 1
@@ -214,6 +265,7 @@ $close_btn.Text = 'Close'
 $close_btn.Font = '"Arial",10'
 $Form.Controls.Add($close_btn)
 
+# build Form2 - Popup to ask a question
 $Form2 = New-Object system.Windows.Forms.Form
 $Form2.Size = New-Object System.Drawing.Size(320, 130)
 $Form2.Text = 'question'
@@ -223,6 +275,7 @@ $Form2.StartPosition = 'CenterScreen'
 $txtbox = New-Object System.Windows.Forms.TextBox
 $txtbox.size = '270,100'
 $txtbox.Location = '15,30'
+$txtbox.AcceptsReturn = $true
 $prompt_label = New-Object System.Windows.Forms.Label
 $prompt_label.Text = 'Enter'
 $prompt_label.Location = '5,5'
@@ -238,6 +291,13 @@ $close_btn2.Font = '"Arial",8'
 $Form2.Controls.Add($close_btn2)
 $close_btn2.Add_Click( { $Form2.Close() })
 
+$txtbox_KeyDown = [System.Windows.Forms.KeyEventHandler] {
+    if ($_.KeyCode -eq 'Enter') {
+        $close_btn2.PerformClick()
+    }
+}
+
+$txtbox.add_KeyDown($txtbox_KeyDown)
 $cat_list_form = New-Object system.Windows.Forms.Form
 $cat_list_form.Size = New-Object System.Drawing.Size(320, 200)
 $cat_list_form.Text = 'Choose a category'
@@ -245,44 +305,49 @@ $cat_list_form.FormBorderStyle = 'FixedDialog'
 $cat_list_form.StartPosition = 'CenterParent'
 
 $cl_OKbtn = New-Object System.Windows.Forms.Button
-$cl_OKbtn.Location = New-Object System.Drawing.Point(75,120)
-$cl_OKbtn.Size = New-Object System.Drawing.Size(75,23)
+$cl_OKbtn.Location = New-Object System.Drawing.Point(75, 120)
+$cl_OKbtn.Size = New-Object System.Drawing.Size(75, 23)
 $cl_OKbtn.Text = 'OK'
 $cl_OKbtn.DialogResult = [System.Windows.Forms.DialogResult]::OK
 $cat_list_form.AcceptButton = $cl_OKbtn
 $cat_list_form.Controls.Add($cl_OKbtn)
 
 $cl_CnclBtn = New-Object System.Windows.Forms.Button
-$cl_CnclBtn.Location = New-Object System.Drawing.Point(150,120)
-$cl_CnclBtn.Size = New-Object System.Drawing.Size(75,23)
+$cl_CnclBtn.Location = New-Object System.Drawing.Point(150, 120)
+$cl_CnclBtn.Size = New-Object System.Drawing.Size(75, 23)
 $cl_CnclBtn.Text = 'Cancel'
 $cl_CnclBtn.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
 $cat_list_form.CancelButton = $cl_CnclBtn
 $cat_list_form.Controls.Add($cl_CnclBtn)
 
 $cl_label = New-Object System.Windows.Forms.Label
-$cl_label.Location = New-Object System.Drawing.Point(10,20)
-$cl_label.Size = New-Object System.Drawing.Size(280,20)
+$cl_label.Location = New-Object System.Drawing.Point(10, 20)
+$cl_label.Size = New-Object System.Drawing.Size(280, 20)
 $cl_label.Text = 'Please select a category:'
 $cat_list_form.Controls.Add($cl_label)
 
 $cat_listBox = New-Object System.Windows.Forms.listBox
-$cat_listBox.Location = New-Object System.Drawing.Point(10,40)
-$cat_listBox.Size = New-Object System.Drawing.Size(260,20)
+$cat_listBox.Location = New-Object System.Drawing.Point(10, 40)
+$cat_listBox.Size = New-Object System.Drawing.Size(260, 20)
 $cat_listBox.Height = 80
 
-foreach ($cat in $categories) {
-    [void] $cat_listBox.Items.Add($cat)
-    write-host "Adding $cat to cat list dialog"
-}
 [void] $cat_listBox.Items.Add('new...')
+[void] $cat_listBox.Items.Add('none')
+[void] $cat_listBox.Items.Add('Favourites')
+foreach ($cat in $global:categories) {
+    if ($cat -ne "Favourites" -and $cat -ne "none") {
+        [void] $cat_listBox.Items.Add($cat)
+    }
+    write-debug "Adding $cat to cat list dialog"
+}
+
+
 
 $cat_list_form.Controls.Add($cat_listBox)
 
 $close_btn.Add_Click( { $Form.Close()
-        $form2.Close()
-        $cat_list_form.close() })
+        cleanup
+    })
 
 $Form.ShowDialog()
-$form2.close()
-$cat_list_form.Close()
+cleanup
