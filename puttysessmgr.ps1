@@ -182,7 +182,11 @@ function add_node {
 }
 
 # main script
+
+# DebugPreference determines whether Write-Debug statements get 
+# output or not
 $DebugPreference = "Continue"
+
 # path to putty
 $puttypath = 'C:\Program Files\PuTTY'
 $putty_exe = $puttypath + '\putty.exe'
@@ -211,13 +215,18 @@ $tree.Location = '5,5'
 $tree.Text = 'Putty Sessions'
 $tree.Font = '"Consolas",10'
 
+# categories is the category list
 $global:categories = @()
+# node_cats maps nodes to their categories
 $node_cats = @{ }
 
+# List of sessions from the Putty registry key
 $global:sessions = Get-ChildItem -Path Registry::HKEY_CURRENT_USER\Software\SimonTatham\PuTTY\Sessions | `
     ForEach-Object { split-path -leaf $_.Name } | `
     ForEach-Object { [uri]::UnescapeDataString($_) }
 
+
+# build categories and node_cats from the sessions
 $i = 0 
 foreach ($sess in $global:sessions) {
     if ($i -lt 5) {
@@ -236,7 +245,14 @@ foreach ($sess in $global:sessions) {
     $node_cats.add($sess, $cat) 
 }
 
+
+# start adding nodes to the treeview
+
+# first add a special node for "open Putty" which just opens Putty without
+# a specific session
 add_node $tree.Nodes 'none' 'Open Putty'
+
+# add a node for each session
 $i = 0 
 foreach ($sess in $global:sessions) {
     write-debug "`nAdding node - Session=[$sess] cat=[$($node_cats[$sess])]"
@@ -245,10 +261,12 @@ foreach ($sess in $global:sessions) {
     $i += 1
 }
 
+# set doubleclick to run launch() function
 $tree.add_MouseDoubleClick( {
         launch($this.SelectedNode)
     })
 
+# set right-click to run rightclick function
 $tree.add_NodeMouseClick( {
         $whichnode = $this.SelectedNode
         if ($_.Button -eq 'Right') {
@@ -256,8 +274,11 @@ $tree.add_NodeMouseClick( {
         }
 
     })
+
+# add tree to form
 $Form.controls.add($tree)
 
+# close button for the form
 $close_btn = New-Object System.Windows.Forms.Button
 $close_btn.location = '160,520'
 $close_btn.size = '80,25'
@@ -272,10 +293,13 @@ $Form2.Text = 'question'
 $Form2.FormBorderStyle = 'FixedDialog'
 $Form2.StartPosition = 'CenterScreen'
 
+# txtbox is the box you type the answer in
 $txtbox = New-Object System.Windows.Forms.TextBox
 $txtbox.size = '270,100'
 $txtbox.Location = '15,30'
 $txtbox.AcceptsReturn = $true
+
+
 $prompt_label = New-Object System.Windows.Forms.Label
 $prompt_label.Text = 'Enter'
 $prompt_label.Location = '5,5'
@@ -283,6 +307,7 @@ $prompt_label.Size = '280,20'
 $Form2.Controls.Add($prompt_label) 
 $Form2.Controls.Add($txtbox)
 
+# close button for prompt form
 $close_btn2 = New-Object System.Windows.Forms.Button
 $close_btn2.location = '140,55'
 $close_btn2.size = '40,25'
@@ -291,6 +316,8 @@ $close_btn2.Font = '"Arial",8'
 $Form2.Controls.Add($close_btn2)
 $close_btn2.Add_Click( { $Form2.Close() })
 
+# make hitting enter in the txtbox do the same as if we
+# pressed the close button
 $txtbox_KeyDown = [System.Windows.Forms.KeyEventHandler] {
     if ($_.KeyCode -eq 'Enter') {
         $close_btn2.PerformClick()
@@ -298,12 +325,15 @@ $txtbox_KeyDown = [System.Windows.Forms.KeyEventHandler] {
 }
 
 $txtbox.add_KeyDown($txtbox_KeyDown)
+
+# cat_list_form is the category list form
 $cat_list_form = New-Object system.Windows.Forms.Form
 $cat_list_form.Size = New-Object System.Drawing.Size(320, 200)
 $cat_list_form.Text = 'Choose a category'
 $cat_list_form.FormBorderStyle = 'FixedDialog'
 $cat_list_form.StartPosition = 'CenterParent'
 
+# close button for cat list form
 $cl_OKbtn = New-Object System.Windows.Forms.Button
 $cl_OKbtn.Location = New-Object System.Drawing.Point(75, 120)
 $cl_OKbtn.Size = New-Object System.Drawing.Size(75, 23)
@@ -312,6 +342,7 @@ $cl_OKbtn.DialogResult = [System.Windows.Forms.DialogResult]::OK
 $cat_list_form.AcceptButton = $cl_OKbtn
 $cat_list_form.Controls.Add($cl_OKbtn)
 
+# cancel button for cat list form
 $cl_CnclBtn = New-Object System.Windows.Forms.Button
 $cl_CnclBtn.Location = New-Object System.Drawing.Point(150, 120)
 $cl_CnclBtn.Size = New-Object System.Drawing.Size(75, 23)
@@ -320,20 +351,27 @@ $cl_CnclBtn.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
 $cat_list_form.CancelButton = $cl_CnclBtn
 $cat_list_form.Controls.Add($cl_CnclBtn)
 
+# add a label 
 $cl_label = New-Object System.Windows.Forms.Label
 $cl_label.Location = New-Object System.Drawing.Point(10, 20)
 $cl_label.Size = New-Object System.Drawing.Size(280, 20)
 $cl_label.Text = 'Please select a category:'
 $cat_list_form.Controls.Add($cl_label)
 
+# list box to choose a category
 $cat_listBox = New-Object System.Windows.Forms.listBox
 $cat_listBox.Location = New-Object System.Drawing.Point(10, 40)
 $cat_listBox.Size = New-Object System.Drawing.Size(260, 20)
 $cat_listBox.Height = 80
 
+# add categories to listbox
+
+# add 'special' entries first 
 [void] $cat_listBox.Items.Add('new...')
 [void] $cat_listBox.Items.Add('none')
 [void] $cat_listBox.Items.Add('Favourites')
+
+# now add actual categories
 foreach ($cat in $global:categories) {
     if ($cat -ne "Favourites" -and $cat -ne "none") {
         [void] $cat_listBox.Items.Add($cat)
@@ -341,13 +379,16 @@ foreach ($cat in $global:categories) {
     write-debug "Adding $cat to cat list dialog"
 }
 
-
-
 $cat_list_form.Controls.Add($cat_listBox)
 
+# if close button is pressed run cleanup function
 $close_btn.Add_Click( { $Form.Close()
         cleanup
     })
 
+# kick off actual script by showing main form
 $Form.ShowDialog()
+
+# we get here if user closed the form but not by the 
+# close button
 cleanup
