@@ -17,6 +17,89 @@ function cleanup {
     $txtbox.remove_KeyDown($txtbox_KeyDown)
 }
 
+# rebuild_tree
+function rebuild_tree {
+    param([bool] $firsttime)
+
+    # remove existing item nodes
+    $tree.Nodes.Clear()
+
+    # first add a special node for "open Putty" which just opens Putty without
+    # a specific session
+
+    add_node $tree.Nodes 'none' 'Open Putty'
+
+    # add a node for each category
+    write-debug "`n`n`nPAUL"
+    if ($global:categories -contains "Favourites") {
+        Write-Debug "  Category: Favourites"
+        $newcatnode = New-Object System.Windows.Forms.TreeNode
+        $newcatnode.Text = "Favourites"
+        $newcatnode.Name = "Favourites"
+        $newcatnode.Tag = 'category'
+        [void] $tree.Nodes.Add($newcatnode)
+    }      
+
+    $global:node_cats.GetEnumerator() | foreach {
+        $cat = $_.Value
+        Write-Debug "enum nodecat $cat"
+    }
+    $global:categories | Sort-Object | ForEach-Object {
+        $cat = $_ 
+        write-debug "  Category: $cat"
+        if ($cat -ne "Favourites" -and $cat -ne "none")
+                {
+
+            Write-Debug "      $cat not none/Faves"
+
+            $known_cat = $false
+            $global:node_cats.GetEnumerator() | foreach {
+                
+                if ($_.Value -eq $cat)
+                {
+                    $known_cat = $true
+                    #break
+                }
+            }
+
+            if ($known_cat)
+            {
+                Write-Debug "      $cat is in node-cats"
+            $existing_cat_node = $tree.Nodes.find($cat, $true)
+            if (-not $existing_cat_node) {  
+                Write-Debug "         not found will create"
+                $newcatnode = New-Object System.Windows.Forms.TreeNode
+                $newcatnode.Text = $cat
+                $newcatnode.Name = $cat
+                $newcatnode.Tag = 'category'
+                [void] $tree.Nodes.Add($newcatnode)
+            }
+            else {
+                Write-Debug "         found will not create"
+                
+            }
+        } else {
+            Write-Debug "      $cat is NOT in node-cats"
+        }
+        }
+        else {
+            Write-Debug "      $cat not eligible for node creation"
+        }
+    }
+    write-debug "PAUL`n`n`n"
+
+    if (-not $firsttime) {
+        return 
+    }
+ 
+    foreach ($sess in $global:sessions) {
+        write-debug "Adding node - Session=[$sess] cat=[$($node_cats[$sess])]"
+
+        add_node $tree.Nodes  $($global:node_cats[$sess]) $sess
+    }
+
+}
+
 # choose_cat - choose a category
 function choose_cat {
 
@@ -53,12 +136,13 @@ function prompt {
 function rightclick {
     param([System.Windows.Forms.TreeNode]$node)
 
+    $has_changed = $false 
     if ($node.Tag -ne 'item') {
-        return
+        return $has_changed
     }
     $nodetext = $node.Name
 
-    $cat = $node_cats[$nodetext]
+    $cat = $global:node_cats[$nodetext]
     $orig_cat = $cat 
     if ($cat -eq 'none') {
         $cat = ''
@@ -77,12 +161,12 @@ function rightclick {
 
     if ($chosen_cat -eq '' -or $chosen_cat -eq $orig_cat ) {
         write-debug "Not changing cat"
-        $has_changed = 0
+        $has_changed = $false 
     }
     else {
         write-debug "Change cat for $nodetext to $chosen_cat"
-        $has_changed = 1
-        $node_cats[$nodetext] = $chosen_cat
+        $has_changed = $true 
+        $global:node_cats[$nodetext] = $chosen_cat
       
         if ($global:categories -notcontains $chosen_cat) {
             ForEach ($cat in $global:categories) {
@@ -206,7 +290,8 @@ function add_node {
 
 # DebugPreference determines whether Write-Debug statements get 
 # output or not
-$DebugPreference = "Continue"
+$DebugPreference = "SilentlyContinue"
+#$DebugPreference = "Continue"
 
 # path to putty
 $puttypath = 'C:\Program Files\PuTTY'
@@ -239,7 +324,7 @@ $tree.Font = '"Consolas",10'
 # categories is the category list
 $global:categories = @()
 # node_cats maps nodes to their categories
-$node_cats = @{ }
+$global:node_cats = @{ }
 
 # a couple of globals for which action launched launch
 $global:from_key = 1
@@ -263,29 +348,16 @@ foreach ($sess in $global:sessions) {
 
     $i += 1
 
-    $new_cat = $global:categories | Where-Object { $_ -eq $cat }
-    if (-not $new_cat) {
+    if ($global:categories -notcontains $cat ) {
         $global:categories += $cat
     }
-    $node_cats.add($sess, $cat) 
+    $global:node_cats.add($sess, $cat) 
 }
 
 
 # start adding nodes to the treeview
 
-# first add a special node for "open Putty" which just opens Putty without
-# a specific session
-
-add_node $tree.Nodes 'none' 'Open Putty'
-
-# add a node for each session
-$i = 0 
-foreach ($sess in $global:sessions) {
-    write-debug "`nAdding node - Session=[$sess] cat=[$($node_cats[$sess])]"
-    
-    add_node $tree.Nodes  $($node_cats[$sess]) $sess
-    $i += 1
-}
+rebuild_tree $true 
 
 # set doubleclick to run launch() function
 $tree.add_MouseDoubleClick( {
@@ -296,7 +368,10 @@ $tree.add_MouseDoubleClick( {
 $tree.add_NodeMouseClick( {
         $whichnode = $this.SelectedNode
         if ($_.Button -eq 'Right') {
-            rightclick($whichnode)
+            $cat_changed = rightclick($whichnode)
+            if ($cat_changed) {
+                rebuild_tree $true 
+            }
         }
 
     })
