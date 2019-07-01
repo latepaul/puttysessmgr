@@ -2,6 +2,8 @@
 #
 # 27-Jun-2019 - Paul Mason
 #               Created initial version
+# 01-Jul-2019 - Paul Mason #13 
+#               Implement keyboard shortcut for launch
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -120,20 +122,39 @@ function rightclick {
 
 # launch - launch putty for a session
 function launch {
-    param([System.Windows.Forms.TreeNode]$node)
+    param([System.Windows.Forms.TreeNode]$node,
+        [int] $from)
 
     $tag = $node.Tag
+    $name = $node.Name
 
+    Write-Debug "launch: node=[$name] tag=[$tag] from=[$from]"
+
+    # if this is a session launch it in putty
     if ($tag -eq 'item') {
         $sess_name = $node.Text
-        if ($sess_name -eq 'Open Putty') { 
-            $cmd = '& ' + $putty_exe
-        } 
-        else {
-            $cmd = '& ' + $putty_exe + ' -load ' + $sess_name
-        }
-        write-debug "Launching: $cmd"
+        write-debug "Launching: $putty_exe -load $sess_name"
         & $putty_exe -load $sess_name
+       
+    }
+
+    # if this is a category then expand/collapse it
+    # but only if it's a key press - treeview has expand on double-click
+    # built in already
+    if ($tag -eq 'category' -and $from -eq $global:from_key) {
+        if ($tree.SelectedNode.IsExpanded -eq $true) {
+            $tree.SelectedNode.Collapse()
+        }
+        else {
+            $tree.SelectedNode.Expand()    
+        }
+        
+    }
+
+    # if this is "Open Putty" then just launch putty (with no session)
+    if ($tag -eq 'openputty') {
+        write-debug "Launching: $putty_exe"
+        & $putty_exe
     }
 }
 
@@ -148,7 +169,7 @@ function add_node {
     $newnode.Text = $name
 
     if ($name -eq 'Open Putty') {
-        $newnode.Tag = 'special'
+        $newnode.Tag = 'openputty'
     }
     else {    
         $newnode.Tag = 'item'
@@ -220,6 +241,10 @@ $global:categories = @()
 # node_cats maps nodes to their categories
 $node_cats = @{ }
 
+# a couple of globals for which action launched launch
+$global:from_key = 1
+$global:from_mouse = 2
+
 # List of sessions from the Putty registry key
 $global:sessions = Get-ChildItem -Path Registry::HKEY_CURRENT_USER\Software\SimonTatham\PuTTY\Sessions | `
     ForEach-Object { split-path -leaf $_.Name } | `
@@ -250,6 +275,7 @@ foreach ($sess in $global:sessions) {
 
 # first add a special node for "open Putty" which just opens Putty without
 # a specific session
+
 add_node $tree.Nodes 'none' 'Open Putty'
 
 # add a node for each session
@@ -263,7 +289,7 @@ foreach ($sess in $global:sessions) {
 
 # set doubleclick to run launch() function
 $tree.add_MouseDoubleClick( {
-        launch($this.SelectedNode)
+        launch $this.SelectedNode $global:from_mouse
     })
 
 # set right-click to run rightclick function
@@ -274,6 +300,14 @@ $tree.add_NodeMouseClick( {
         }
 
     })
+
+$tree_KeyDown = [System.Windows.Forms.KeyEventHandler] {
+    if ($_.KeyCode -eq 'Enter') {
+        launch $tree.SelectedNode $global:from_key
+    }
+}
+    
+$tree.add_KeyDown($tree_KeyDown)
 
 # add tree to form
 $Form.controls.add($tree)
