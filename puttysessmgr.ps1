@@ -98,6 +98,7 @@ function rebuild_tree {
 # choose_cat - choose a category
 function choose_cat {
 
+    $Form.TopMost = $false
     $cat_list_form.Topmost = $true
 
     $result = $cat_list_form.ShowDialog()
