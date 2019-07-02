@@ -17,9 +17,42 @@ function cleanup {
     $txtbox.remove_KeyDown($txtbox_KeyDown)
 }
 
+# refresh_cat_list
+function refresh_cat_list {
+
+    [void] $cat_listBox.Items.Clear()
+
+    # add 'special' entries first 
+    [void] $cat_listBox.Items.Add('new...')
+    [void] $cat_listBox.Items.Add('none')
+    [void] $cat_listBox.Items.Add('Favourites')
+
+    # now add actual categories
+    foreach ($cat in $global:categories) {
+        if ($cat -ne "Favourites" -and $cat -ne "none" `
+                -and $global:node_cats.ContainsValue($cat)) {
+            [void] $cat_listBox.Items.Add($cat)
+            write-debug "Adding $cat to cat list dialog"
+        }
+        
+    }
+
+    # remove unused categories
+    $remove_cats = $()
+    $global:categories | ForEach-Object {
+        if (-not $global:node_cats.ContainsValue($_))
+        {
+            $remove_cats += $_
+        }
+    }
+
+    $remove_cats | ForEach-Object {
+        $global:categories.Remove($_)
+    }
+
+}
 # rebuild_tree
 function rebuild_tree {
-    param([bool] $firsttime)
 
     # remove existing item nodes
     $tree.Nodes.Clear()
@@ -39,7 +72,7 @@ function rebuild_tree {
         [void] $tree.Nodes.Add($newcatnode)
     }      
 
-    $global:categories | Sort-Object | get-unique |ForEach-Object {
+    $global:categories | Sort-Object | get-unique | ForEach-Object {
         $cat = $_ 
         write-debug "  Category: $cat"
         if ($cat -ne "Favourites" -and $cat -ne "none") {
@@ -71,14 +104,14 @@ function rebuild_tree {
             Write-Debug "      $cat not eligible for node creation"
         }
     }
- 
+
     foreach ($sess in $global:sessions) {
         write-debug "Adding node - Session=[$sess] cat=[$($node_cats[$sess])]"
 
         add_node $tree.Nodes  $($global:node_cats[$sess]) $sess
     }
 
-}
+ }
 
 # choose_cat - choose a category
 function choose_cat {
@@ -87,7 +120,7 @@ function choose_cat {
     $cat_list_form.Topmost = $true
 
     $result = $cat_list_form.ShowDialog()
-    $x =@{}
+    $x = @{ }
     $x[0] = "cancel"
     if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         $x[0] = "category"
@@ -111,8 +144,7 @@ function prompt {
     $prompt_form.Text = $title
     $txtbox.Text = $default 
     $result = $prompt_form.ShowDialog() 
-    if ($result -eq [System.Windows.Forms.DialogResult]::Cancel)
-    {
+    if ($result -eq [System.Windows.Forms.DialogResult]::Cancel) {
         return ""
     }
     else {
@@ -165,34 +197,10 @@ function rightclick {
         $global:node_cats[$nodetext] = $chosen_cat
       
         if ($global:categories -notcontains $chosen_cat) {
-            ForEach ($cat in $global:categories) {
-                $cat_listBox.Items.Remove($cat)
-            }
             $global:categories += $chosen_cat
-
-            $cat_listBox.Items.Add("none")
-
-            # Favourites if it exists always comes first
-            if ($global:categories -contains "Favourites") {
-                $cat_listBox.Items.Add("Favourites")
-            }
-            
-            write-debug "List cats to re-add to form"
-            write-debug "unsorted:"
-            $global:categories | ForEach-Object {
-                write-debug "...category:$_"
-            }
-            write-debug "sorted:"
-            $global:categories | Sort-Object | ForEach-Object {
-                if ($_ -ne "Favourites" -and $_ -ne "none") {
-                    $cat_listBox.Items.Add($_)
-                    write-debug "...category: $_"
-                }
-                
-            }
-            
+            refresh_cat_list    
         }
-       
+                   
     }
     return $has_changed
 }
@@ -314,7 +322,7 @@ $tree.Text = 'Putty Sessions'
 $tree.Font = '"Consolas",10'
 
 # categories is the category list
-$global:categories = @()
+[System.Collections.ArrayList]$global:categories = @()
 # node_cats maps nodes to their categories
 $global:node_cats = @{ }
 
@@ -349,7 +357,7 @@ foreach ($sess in $global:sessions) {
 
 # start adding nodes to the treeview
 
-rebuild_tree $true 
+rebuild_tree 
 
 # set doubleclick to run launch() function
 $tree.add_MouseDoubleClick( {
@@ -362,7 +370,8 @@ $tree.add_NodeMouseClick( {
         if ($_.Button -eq 'Right') {
             $cat_changed = rightclick($whichnode)
             if ($cat_changed) {
-                rebuild_tree $true 
+                rebuild_tree
+                refresh_cat_list
             }
         }
 
@@ -474,19 +483,7 @@ $cat_listBox.Size = New-Object System.Drawing.Size(260, 20)
 $cat_listBox.Height = 80
 
 # add categories to listbox
-
-# add 'special' entries first 
-[void] $cat_listBox.Items.Add('new...')
-[void] $cat_listBox.Items.Add('none')
-[void] $cat_listBox.Items.Add('Favourites')
-
-# now add actual categories
-foreach ($cat in $global:categories) {
-    if ($cat -ne "Favourites" -and $cat -ne "none") {
-        [void] $cat_listBox.Items.Add($cat)
-    }
-    write-debug "Adding $cat to cat list dialog"
-}
+refresh_cat_list
 
 $cat_list_form.Controls.Add($cat_listBox)
 
@@ -502,8 +499,8 @@ $cat_listBox.add_KeyDown($lstbox_KeyDown)
 
 # set doubleclick to run launch() function
 $cat_listBox.add_MouseDoubleClick( {
-    $cl_OKbtn.PerformClick()
-})
+        $cl_OKbtn.PerformClick()
+    })
 
 # if close button is pressed run cleanup function
 $close_btn.Add_Click( { $Form.Close()
