@@ -500,6 +500,11 @@ $lstbox_KeyDown = [System.Windows.Forms.KeyEventHandler] {
 
 $cat_listBox.add_KeyDown($lstbox_KeyDown)
 
+# set doubleclick to run launch() function
+$cat_listBox.add_MouseDoubleClick( {
+    $cl_OKbtn.PerformClick()
+})
+
 # if close button is pressed run cleanup function
 $close_btn.Add_Click( { $Form.Close()
         cleanup
