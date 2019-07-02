@@ -30,7 +30,6 @@ function rebuild_tree {
     add_node $tree.Nodes 'none' 'Open Putty'
 
     # add a node for each category
-    write-debug "`n`n`nPAUL"
     if ($global:categories -contains "Favourites") {
         Write-Debug "  Category: Favourites"
         $newcatnode = New-Object System.Windows.Forms.TreeNode
@@ -40,47 +39,43 @@ function rebuild_tree {
         [void] $tree.Nodes.Add($newcatnode)
     }      
 
-    $global:node_cats.GetEnumerator() | foreach {
-        $cat = $_.Value
-        Write-Debug "enum nodecat $cat"
-    }
-    $global:categories | Sort-Object | ForEach-Object {
+    $global:categories | Sort-Object | unique |ForEach-Object {
         $cat = $_ 
         write-debug "  Category: $cat"
-        if ($cat -ne "Favourites" -and $cat -ne "none")
-                {
+        if ($cat -ne "Favourites" -and $cat -ne "none") {
 
             Write-Debug "      $cat not none/Faves"
 
             $known_cat = $false
-            $global:node_cats.GetEnumerator() | foreach {
+            
+            $global:node_cats.GetEnumerator() | foreach-object {
                 
-                if ($_.Value -eq $cat)
-                {
+                if ($_.Value -eq $cat) {
                     $known_cat = $true
-                    #break
                 }
             }
 
-            if ($known_cat)
-            {
+            Write-Debug "`n`nAfter search for $cat in node_cats"
+            if ($known_cat) {
                 Write-Debug "      $cat is in node-cats"
-            $existing_cat_node = $tree.Nodes.find($cat, $true)
-            if (-not $existing_cat_node) {  
-                Write-Debug "         not found will create"
-                $newcatnode = New-Object System.Windows.Forms.TreeNode
-                $newcatnode.Text = $cat
-                $newcatnode.Name = $cat
-                $newcatnode.Tag = 'category'
-                [void] $tree.Nodes.Add($newcatnode)
+                $existing_cat_node = $tree.Nodes.find($cat, $true)
+                if (-not $existing_cat_node) {  
+                    Write-Debug "         not found will create"
+                    $newcatnode = New-Object System.Windows.Forms.TreeNode
+                    $newcatnode.Text = $cat
+                    $newcatnode.Name = $cat
+                    $newcatnode.Tag = 'category'
+                    [void] $tree.Nodes.Add($newcatnode)
+                }
+                else {
+                    Write-Debug "         found will not create"
+                
+                }
             }
             else {
-                Write-Debug "         found will not create"
-                
+                Write-Debug "      $cat is NOT in node-cats"
             }
-        } else {
-            Write-Debug "      $cat is NOT in node-cats"
-        }
+            Write-Debug "`n`n`n"
         }
         else {
             Write-Debug "      $cat not eligible for node creation"
@@ -172,10 +167,8 @@ function rightclick {
             ForEach ($cat in $global:categories) {
                 $cat_listBox.Items.Remove($cat)
             }
-            #$cat_listBox.Items.Remove("new...")
             $global:categories += $chosen_cat
 
-            #$cat_listBox.Items.add("new...")
             $cat_listBox.Items.Add("none")
 
             # Favourites if it exists always comes first
@@ -197,7 +190,6 @@ function rightclick {
                 
             }
             
-            #$cat_list_form.Refresh()
         }
        
     }
@@ -265,11 +257,10 @@ function add_node {
     }
     else {
         write-debug "Searching for node called $category"
-        $rootnode | ForEach-Object { write-debug "...Name: $_.Name Text: $_.Text" }
         $addto_node = $rootnode | Where-Object { $_.Name -eq $category }
 
         if ($addto_node) {
-            write-debug "found node with $category - $addto_node.Name"
+            write-debug "found node with $category"
             [void] $addto_node.Nodes.Add($newnode) 
         }
         else {
@@ -290,8 +281,8 @@ function add_node {
 
 # DebugPreference determines whether Write-Debug statements get 
 # output or not
-$DebugPreference = "SilentlyContinue"
-#$DebugPreference = "Continue"
+#$DebugPreference = "SilentlyContinue"
+$DebugPreference = "Continue"
 
 # path to putty
 $puttypath = 'C:\Program Files\PuTTY'
@@ -496,6 +487,8 @@ $close_btn.Add_Click( { $Form.Close()
     })
 
 # kick off actual script by showing main form
+$Form.TopMost = $true 
+
 $Form.ShowDialog()
 
 # we get here if user closed the form but not by the 
