@@ -12,7 +12,7 @@ Add-Type -AssemblyName System.Drawing
 # this is a function because we can be called from the close
 # button or by quitting the form
 function cleanup {
-    $form2.close()
+    $prompt_form.close()
     $cat_list_form.Close()
     $txtbox.remove_KeyDown($txtbox_KeyDown)
 }
@@ -39,24 +39,14 @@ function rebuild_tree {
         [void] $tree.Nodes.Add($newcatnode)
     }      
 
-    $global:categories | Sort-Object | unique |ForEach-Object {
+    $global:categories | Sort-Object | get-unique |ForEach-Object {
         $cat = $_ 
         write-debug "  Category: $cat"
         if ($cat -ne "Favourites" -and $cat -ne "none") {
 
             Write-Debug "      $cat not none/Faves"
 
-            $known_cat = $false
-            
-            $global:node_cats.GetEnumerator() | foreach-object {
-                
-                if ($_.Value -eq $cat) {
-                    $known_cat = $true
-                }
-            }
-
-            Write-Debug "`n`nAfter search for $cat in node_cats"
-            if ($known_cat) {
+            if ($global:node_cats.ContainsValue($cat)) {
                 Write-Debug "      $cat is in node-cats"
                 $existing_cat_node = $tree.Nodes.find($cat, $true)
                 if (-not $existing_cat_node) {  
@@ -81,11 +71,6 @@ function rebuild_tree {
             Write-Debug "      $cat not eligible for node creation"
         }
     }
-    write-debug "PAUL`n`n`n"
-
-    if (-not $firsttime) {
-        return 
-    }
  
     foreach ($sess in $global:sessions) {
         write-debug "Adding node - Session=[$sess] cat=[$($node_cats[$sess])]"
@@ -105,6 +90,7 @@ function choose_cat {
     $x =@{}
     $x[0] = "cancel"
     if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
+        $x[0] = "category"
         $x[1] = $cat_listBox.SelectedItem
         if ($x[1] -eq "new...") {
             $x[0] = "new"
@@ -122,10 +108,16 @@ function prompt {
     
 
     $prompt_label.Text = $message
-    $Form2.Text = $title
+    $prompt_form.Text = $title
     $txtbox.Text = $default 
-    [void] $Form2.ShowDialog() 
-    return $txtbox.Text
+    $result = $prompt_form.ShowDialog() 
+    if ($result -eq [System.Windows.Forms.DialogResult]::Cancel)
+    {
+        return ""
+    }
+    else {
+        return $txtbox.Text
+    }
 }
 
 # rightclick - when we right click on a node in the main treeview
@@ -149,11 +141,14 @@ function rightclick {
     $cc_return = choose_cat
     $cc_status = $cc_return[0]
     $chosen_cat = $cc_return[1]
+
+    write-debug "PAUL:rightclick:choose_cat returned: $cc_status $chosen_cat"
     if ($cc_status -eq "cancel") {
+        write-debug "right-click cancel returned from choose_cat"
         return $false
     }
     
-    if ($cc_status="new") {
+    if ($cc_status -eq "new") {
         $prompt_msg = 'Enter category for ' + $nodetext + ':'
         $text = prompt 'Category' $prompt_msg $cat
         Write-Debug "entered text = [$text]"
@@ -327,10 +322,6 @@ $global:node_cats = @{ }
 $global:from_key = 1
 $global:from_mouse = 2
 
-# category return codes
-$global:new_cat = "special::new"
-$global:cncl_cat = "special::cancel"
-
 # List of sessions from the Putty registry key
 $global:sessions = Get-ChildItem -Path Registry::HKEY_CURRENT_USER\Software\SimonTatham\PuTTY\Sessions | `
     ForEach-Object { split-path -leaf $_.Name } | `
@@ -396,12 +387,12 @@ $close_btn.Text = 'Close'
 $close_btn.Font = '"Arial",10'
 $Form.Controls.Add($close_btn)
 
-# build Form2 - Popup to ask a question
-$Form2 = New-Object system.Windows.Forms.Form
-$Form2.Size = New-Object System.Drawing.Size(320, 130)
-$Form2.Text = 'question'
-$Form2.FormBorderStyle = 'FixedDialog'
-$Form2.StartPosition = 'CenterScreen'
+# build prompt_form - Popup to ask a question
+$prompt_form = New-Object system.Windows.Forms.Form
+$prompt_form.Size = New-Object System.Drawing.Size(320, 130)
+$prompt_form.Text = 'question'
+$prompt_form.FormBorderStyle = 'FixedDialog'
+$prompt_form.StartPosition = 'CenterScreen'
 
 # txtbox is the box you type the answer in
 $txtbox = New-Object System.Windows.Forms.TextBox
@@ -414,23 +405,31 @@ $prompt_label = New-Object System.Windows.Forms.Label
 $prompt_label.Text = 'Enter'
 $prompt_label.Location = '5,5'
 $prompt_label.Size = '280,20'
-$Form2.Controls.Add($prompt_label) 
-$Form2.Controls.Add($txtbox)
+$prompt_form.Controls.Add($prompt_label) 
+$prompt_form.Controls.Add($txtbox)
 
 # close button for prompt form
-$close_btn2 = New-Object System.Windows.Forms.Button
-$close_btn2.location = '140,55'
-$close_btn2.size = '40,25'
-$close_btn2.Text = 'OK'
-$close_btn2.Font = '"Arial",8'
-$Form2.Controls.Add($close_btn2)
-$close_btn2.Add_Click( { $Form2.Close() })
+$prmpt_OKbtn = New-Object System.Windows.Forms.Button
+$prmpt_OKbtn.location = '80,55'
+$prmpt_OKbtn.size = '40,25'
+$prmpt_OKbtn.Text = 'OK'
+$prmpt_OKbtn.DialogResult = [System.Windows.Forms.DialogResult]::OK
+$prompt_form.Controls.Add($prmpt_OKbtn)
+
+# cancel button for prompt form
+$prmpt_Cnclbtn = New-Object System.Windows.Forms.Button
+$prmpt_Cnclbtn.location = '180,55'
+$prmpt_Cnclbtn.size = '50,25'
+$prmpt_Cnclbtn.Text = 'Cancel'
+$prmpt_Cnclbtn.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+$prompt_form.CancelButton = $prmpt_Cnclbtn
+$prompt_form.Controls.Add($prmpt_Cnclbtn)
 
 # make hitting enter in the txtbox do the same as if we
 # pressed the close button
 $txtbox_KeyDown = [System.Windows.Forms.KeyEventHandler] {
     if ($_.KeyCode -eq 'Enter') {
-        $close_btn2.PerformClick()
+        $prmpt_OKbtn.PerformClick()
     }
 }
 
@@ -443,7 +442,7 @@ $cat_list_form.Text = 'Choose a category'
 $cat_list_form.FormBorderStyle = 'FixedDialog'
 $cat_list_form.StartPosition = 'CenterParent'
 
-# close button for cat list form
+# OK button for cat list form
 $cl_OKbtn = New-Object System.Windows.Forms.Button
 $cl_OKbtn.Location = New-Object System.Drawing.Point(75, 120)
 $cl_OKbtn.Size = New-Object System.Drawing.Size(75, 23)
@@ -490,6 +489,16 @@ foreach ($cat in $global:categories) {
 }
 
 $cat_list_form.Controls.Add($cat_listBox)
+
+# make hitting enter in the list box do the same as if we
+# pressed the OK button
+$lstbox_KeyDown = [System.Windows.Forms.KeyEventHandler] {
+    if ($_.KeyCode -eq 'Enter') {
+        $cl_OKbtn.PerformClick()
+    }
+}
+
+$cat_listBox.add_KeyDown($lstbox_KeyDown)
 
 # if close button is pressed run cleanup function
 $close_btn.Add_Click( { $Form.Close()
