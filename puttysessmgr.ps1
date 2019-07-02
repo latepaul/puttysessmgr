@@ -102,12 +102,12 @@ function choose_cat {
     $cat_list_form.Topmost = $true
 
     $result = $cat_list_form.ShowDialog()
-
-    $x = "other"
+    $x =@{}
+    $x[0] = "cancel"
     if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
-        $x = $cat_listBox.SelectedItem
-        if ($x -eq "new...") {
-            $x = "other"
+        $x[1] = $cat_listBox.SelectedItem
+        if ($x[1] -eq "new...") {
+            $x[0] = "new"
         }
     }
 
@@ -146,14 +146,19 @@ function rightclick {
 
     write-debug "right-click on: $nodetext (cat=$cat)"
 
-    $chosen_cat = choose_cat
-    if ($chosen_cat -eq "other") {
+    $cc_return = choose_cat
+    $cc_status = $cc_return[0]
+    $chosen_cat = $cc_return[1]
+    if ($cc_status -eq "cancel") {
+        return $false
+    }
+    
+    if ($cc_status="new") {
         $prompt_msg = 'Enter category for ' + $nodetext + ':'
         $text = prompt 'Category' $prompt_msg $cat
         Write-Debug "entered text = [$text]"
         $chosen_cat = $text 
     }
-
 
     if ($chosen_cat -eq '' -or $chosen_cat -eq $orig_cat ) {
         write-debug "Not changing cat"
@@ -321,6 +326,10 @@ $global:node_cats = @{ }
 # a couple of globals for which action launched launch
 $global:from_key = 1
 $global:from_mouse = 2
+
+# category return codes
+$global:new_cat = "special::new"
+$global:cncl_cat = "special::cancel"
 
 # List of sessions from the Putty registry key
 $global:sessions = Get-ChildItem -Path Registry::HKEY_CURRENT_USER\Software\SimonTatham\PuTTY\Sessions | `
