@@ -17,6 +17,76 @@ function cleanup {
     $txtbox.remove_KeyDown($txtbox_KeyDown)
 }
 
+# save_config - save current config to file
+
+function save_config{
+    if ($global:config_filename -eq "")
+    {
+        $def_filename_path=$Env:USERPROFILE
+        if ($def_filename_path -eq "")
+        {
+            $def_filename_path=$Env:TEMP
+        }
+        $def_filename = $def_filename_path +'\puttysessmgr.ini'
+        $global:config_filename = prompt "Config file" "Enter the filename of the config" $def_filename        
+    }
+
+    "[putty_exe]" | Out-File $global:config_filename
+    $putty_exe | Out-File $global:config_filename -Append
+    "[sessions]" | Out-File $global:config_filename -Append
+    $global:node_cats.GetEnumerator() | ForEach-Object {
+        $cat = $_.Value 
+        $sess = $_.Key
+        Write-Debug "cat: $cat Sess: $sess"
+        $out_str='"{0}" , "{1}"' -f $sess, $cat
+        $out_str | Out-File $global:config_filename -Append
+    }
+}
+
+function load_config{
+    if ($global:config_filename -eq "")
+    {
+        $def_filename_path=$Env:USERPROFILE
+        if ($def_filename_path -eq "")
+        {
+            $def_filename_path=$Env:TEMP
+        }
+        $def_filename = $def_filename_path +'\puttysessmgr.ini'
+        $global:config_filename = prompt "Config file" "Enter the filename of the config" $def_filename        
+    }
+
+    $global:node_cats.Clear()
+    $global:categories.Clear()
+    $script:section = ""
+    Get-Content $global:config_filename | ForEach-Object {
+        if ($script:section -eq "putty_exe") {
+            $global:putty_exe = $_ 
+        } elseif ($script:section -eq "sessions") {
+            $parts=$_.split(",")
+            $parts2=$parts[0].split("""")
+            $sess = $parts2[1]
+            $parts2=$parts[1].split("""")
+            $cat = $parts2[1]
+            Write-Debug "read node=$sess cat=$cat"
+            $global:node_cats[$sess]=$cat 
+            if ($global:categories -notcontains $cat)
+            {
+                $global:categories += $cat
+            }
+            
+        }
+
+        if ($_ -eq "[putty_exe]")
+        {
+            $script:section = "putty_exe"
+        } elseif ($_ -eq "[sessions]")
+        {
+            $script:section = "sessions"
+        }
+    }
+
+    
+}
 # refresh_cat_list
 function refresh_cat_list {
 
@@ -324,6 +394,8 @@ $tree.Font = '"Consolas",10'
 # node_cats maps nodes to their categories
 $global:node_cats = @{ }
 
+$global:config_filename = ""
+
 # a couple of globals for which action launched launch
 $global:from_key = 1
 $global:from_mouse = 2
@@ -401,6 +473,9 @@ $save_btn.size = '80,25'
 $save_btn.Text = 'Save'
 $save_btn.Font = '"Arial",10'
 $Form.Controls.Add($save_btn)
+$save_btn.Add_Click( { 
+    save_config
+})
 
 # reload button for the form
 $reload_btn = New-Object System.Windows.Forms.Button
@@ -409,6 +484,10 @@ $reload_btn.size = '80,25'
 $reload_btn.Text = 'Reload'
 $reload_btn.Font = '"Arial",10'
 $Form.Controls.Add($reload_btn)
+$reload_btn.Add_Click( { 
+    load_config
+    rebuild_tree
+})
 
 # build prompt_form - Popup to ask a question
 $prompt_form = New-Object system.Windows.Forms.Form
@@ -522,8 +601,6 @@ $close_btn.Add_Click( { $Form.Close()
     })
 
 # kick off actual script by showing main form
-$Form.TopMost = $true 
-
 $Form.ShowDialog()
 
 # we get here if user closed the form but not by the 
