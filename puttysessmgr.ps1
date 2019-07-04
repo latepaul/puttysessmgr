@@ -32,7 +32,6 @@ function refresh_cat_list {
         if ($cat -ne "Favourites" -and $cat -ne "none" `
                 -and $global:node_cats.ContainsValue($cat)) {
             [void] $cat_listBox.Items.Add($cat)
-            write-debug "Adding $cat to cat list dialog"
         }
         
     }
@@ -198,9 +197,8 @@ function rightclick {
       
         if ($global:categories -notcontains $chosen_cat) {
             $global:categories += $chosen_cat
-            refresh_cat_list    
-        }
-                   
+            refresh_cat_list   
+        }                   
     }
     return $has_changed
 }
@@ -390,11 +388,27 @@ $Form.controls.add($tree)
 
 # close button for the form
 $close_btn = New-Object System.Windows.Forms.Button
-$close_btn.location = '160,520'
+$close_btn.location = '280,520'
 $close_btn.size = '80,25'
 $close_btn.Text = 'Close'
 $close_btn.Font = '"Arial",10'
 $Form.Controls.Add($close_btn)
+
+# save button for the form
+$save_btn = New-Object System.Windows.Forms.Button
+$save_btn.location = '40,520'
+$save_btn.size = '80,25'
+$save_btn.Text = 'Save'
+$save_btn.Font = '"Arial",10'
+$Form.Controls.Add($save_btn)
+
+# reload button for the form
+$reload_btn = New-Object System.Windows.Forms.Button
+$reload_btn.location = '140,520'
+$reload_btn.size = '80,25'
+$reload_btn.Text = 'Reload'
+$reload_btn.Font = '"Arial",10'
+$Form.Controls.Add($reload_btn)
 
 # build prompt_form - Popup to ask a question
 $prompt_form = New-Object system.Windows.Forms.Form
