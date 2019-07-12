@@ -19,68 +19,70 @@ function cleanup {
 
 # save_config - save current config to file
 
-function save_config{
-    if ($global:config_filename -eq "")
-    {
-        $def_filename_path=$Env:USERPROFILE
-        if ($def_filename_path -eq "")
-        {
-            $def_filename_path=$Env:TEMP
+function save_config {
+    if ($global:config_filename -eq "") {
+        $def_filename_path = $Env:USERPROFILE
+        if ($def_filename_path -eq "") {
+            $def_filename_path = $Env:TEMP
         }
-        $def_filename = $def_filename_path +'\puttysessmgr.ini'
+        $def_filename = $def_filename_path + '\puttysessmgr.ini'
         $global:config_filename = prompt "Config file" "Enter the filename of the config" $def_filename        
     }
 
+    write-debug "`n`nSAVE_CONFIG - writing new file"
+    write-debug "writing [putty_exe]"
     "[putty_exe]" | Out-File $global:config_filename
-    $putty_exe | Out-File $global:config_filename -Append
+    write-debug "saving p_e=$global:putty_exe"
+    $global:putty_exe | Out-File $global:config_filename -Append
+    write-debug "writing [sessions]"
     "[sessions]" | Out-File $global:config_filename -Append
+    Write-Debug "`n`nPAUL - header done`n`n"
     $global:node_cats.GetEnumerator() | ForEach-Object {
         $cat = $_.Value 
         $sess = $_.Key
-        Write-Debug "cat: $cat Sess: $sess"
-        $out_str='"{0}" , "{1}"' -f $sess, $cat
-        $out_str | Out-File $global:config_filename -Append
+        Write-Debug "save_config: cat: $cat Sess: $sess"
+        "session=$sess" | Out-File $global:config_filename -Append
+        "category=$cat" | Out-File $global:config_filename -Append
     }
 }
 
-function load_config{
-    if ($global:config_filename -eq "")
-    {
-        $def_filename_path=$Env:USERPROFILE
-        if ($def_filename_path -eq "")
-        {
-            $def_filename_path=$Env:TEMP
+function load_config {
+    if ($global:config_filename -eq "") {
+        $def_filename_path = $Env:USERPROFILE
+        if ($def_filename_path -eq "") {
+            $def_filename_path = $Env:TEMP
         }
-        $def_filename = $def_filename_path +'\puttysessmgr.ini'
+        $def_filename = $def_filename_path + '\puttysessmgr.ini'
         $global:config_filename = prompt "Config file" "Enter the filename of the config" $def_filename        
     }
 
     $global:node_cats.Clear()
     $global:categories.Clear()
     $script:section = ""
+    $global:putty_exe ="unset"
     Get-Content $global:config_filename | ForEach-Object {
-        if ($script:section -eq "putty_exe") {
+        if ($script:section -eq "putty_exe" -and $script:section[0] -ne '[' -and $global:putty_exe -eq "unset") {
             $global:putty_exe = $_ 
-        } elseif ($script:section -eq "sessions") {
-            $parts=$_.split(",")
-            $parts2=$parts[0].split("""")
-            $sess = $parts2[1]
-            $parts2=$parts[1].split("""")
-            $cat = $parts2[1]
-            Write-Debug "read node=$sess cat=$cat"
-            $global:node_cats[$sess]=$cat 
-            if ($global:categories -notcontains $cat)
-            {
-                $global:categories += $cat
+        }
+        elseif ($script:section -eq "sessions") {
+            $type = $_.split("=")
+            if ($type[0] -eq "session") {
+                $sess = $type[1]
+            }
+            elseif ($type[0] -eq "category") {
+                $cat = $type[1]
+                $global:node_cats[$sess] = $cat 
+                if ($global:categories -notcontains $cat) {
+                    $global:categories += $cat
+                }
             }
             
         }
 
-        if ($_ -eq "[putty_exe]")
-        {
+        if ($_ -eq "[putty_exe]") {
             $script:section = "putty_exe"
-        } elseif ($_ -eq "[sessions]")
-        {
+        }
+        elseif ($_ -eq "[sessions]") {
             $script:section = "sessions"
         }
     }
@@ -109,8 +111,7 @@ function refresh_cat_list {
     # remove unused categories
     $remove_cats = $()
     $global:categories | ForEach-Object {
-        if (-not $global:node_cats.ContainsValue($_))
-        {
+        if (-not $global:node_cats.ContainsValue($_)) {
             $remove_cats += $_
         }
     }
@@ -180,7 +181,7 @@ function rebuild_tree {
         add_node $tree.Nodes  $($global:node_cats[$sess]) $sess
     }
 
- }
+}
 
 # choose_cat - choose a category
 function choose_cat {
@@ -286,8 +287,8 @@ function launch {
     # if this is a session launch it in putty
     if ($tag -eq 'item') {
         $sess_name = $node.Text
-        write-debug "Launching: $putty_exe -load $sess_name"
-        & $putty_exe -load $sess_name
+        write-debug "Launching: $global:putty_exe -load $sess_name"
+        & $global:putty_exe -load $sess_name
        
     }
 
@@ -306,8 +307,8 @@ function launch {
 
     # if this is "Open Putty" then just launch putty (with no session)
     if ($tag -eq 'openputty') {
-        write-debug "Launching: $putty_exe"
-        & $putty_exe
+        write-debug "Launching: $global:putty_exe"
+        & $global:putty_exe
     }
 }
 
@@ -363,8 +364,8 @@ $DebugPreference = "Continue"
 
 # path to putty
 $puttypath = 'C:\Program Files\PuTTY'
-$putty_exe = $puttypath + '\putty.exe'
-$putty_exe 
+$global:putty_exe = $puttypath + '\putty.exe'
+$global:putty_exe 
 
 # main form is $Form
 $Form = New-Object system.Windows.Forms.Form
@@ -373,7 +374,7 @@ $Form.Text = 'Putty Session Launcher'
 $Form.Startposition = 'CenterScreen'
 
 # use the icon from the putty exe
-$putty_icon = [System.Drawing.Icon]::ExtractAssociatedIcon($putty_exe)
+$putty_icon = [System.Drawing.Icon]::ExtractAssociatedIcon($global:putty_exe)
 if ($putty_icon) {
     $Form.Icon = $putty_icon
 }
@@ -474,8 +475,8 @@ $save_btn.Text = 'Save'
 $save_btn.Font = '"Arial",10'
 $Form.Controls.Add($save_btn)
 $save_btn.Add_Click( { 
-    save_config
-})
+        save_config
+    })
 
 # reload button for the form
 $reload_btn = New-Object System.Windows.Forms.Button
@@ -485,9 +486,9 @@ $reload_btn.Text = 'Reload'
 $reload_btn.Font = '"Arial",10'
 $Form.Controls.Add($reload_btn)
 $reload_btn.Add_Click( { 
-    load_config
-    rebuild_tree
-})
+        load_config
+        rebuild_tree
+    })
 
 # build prompt_form - Popup to ask a question
 $prompt_form = New-Object system.Windows.Forms.Form
