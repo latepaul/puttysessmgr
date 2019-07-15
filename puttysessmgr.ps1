@@ -26,7 +26,7 @@ function save_config {
             $def_filename_path = $Env:TEMP
         }
         $def_filename = $def_filename_path + '\puttysessmgr.ini'
-        $global:config_filename = prompt "Config file" "Enter the filename of the config" $def_filename        
+        $global:config_filename = prompt_for_file "Config file " "Settings files|*.ini|All Files|*.*" $def_filename              
     }
 
     write-debug "`n`nSAVE_CONFIG - writing new file"
@@ -53,7 +53,7 @@ function load_config {
             $def_filename_path = $Env:TEMP
         }
         $def_filename = $def_filename_path + '\puttysessmgr.ini'
-        $global:config_filename = prompt "Config file" "Enter the filename of the config" $def_filename        
+        $global:config_filename = prompt_for_file "Config file " "Settings files|*.ini|All Files|*.*" $def_filename        
     }
 
     $global:node_cats.Clear()
@@ -222,6 +222,31 @@ function prompt {
     }
 }
 
+# prompt_for_file - choose a file
+function prompt_for_file {
+    param([string] $title, 
+    [string] $filter,
+    [string] $default)
+
+    $default_dir = Split-Path -Path $default -Parent
+
+    Write-Debug "prompt_for_file: default_dir = $default_dir"
+
+    $prompt_openfile = New-Object System.Windows.Forms.OpenFileDialog
+    $prompt_openfile.title = $title
+    $prompt_openfile.filter = $filter 
+    $prompt_openfile.InitialDirectory = $default_dir
+    $prompt_openfile.ShowHelp = $True 
+
+    $result = $prompt_openfile.ShowDialog()
+    Write-Debug "prompt_for_file: result = $result"
+    if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
+        return $prompt_openfile.FileName
+    } else {
+        return ""
+    }
+
+}
 # rightclick - when we right click on a node in the main treeview
 function rightclick {
     param([System.Windows.Forms.TreeNode]$node)
