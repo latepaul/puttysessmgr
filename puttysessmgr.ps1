@@ -47,6 +47,9 @@ function save_config {
 }
 
 function load_config {
+
+    write-debug "`n`n***load_config"
+
     if ($global:config_filename -eq "") {
         $def_filename_path = $Env:USERPROFILE
         if ($def_filename_path -eq "") {
@@ -54,6 +57,7 @@ function load_config {
         }
         $def_filename = $def_filename_path + '\puttysessmgr.ini'
         $global:config_filename = prompt_for_file "Config file " "Settings files|*.ini|All Files|*.*" $def_filename        
+        Write-Debug "set config_filename to $global:config_filename"
     }
 
     $global:node_cats.Clear()
@@ -63,17 +67,21 @@ function load_config {
     Get-Content $global:config_filename | ForEach-Object {
         if ($script:section -eq "putty_exe" -and $script:section[0] -ne '[' -and $global:putty_exe -eq "unset") {
             $global:putty_exe = $_ 
+            Write-Debug "putty_exe set to $global:putty_exe"
         }
         elseif ($script:section -eq "sessions") {
             $type = $_.split("=")
             if ($type[0] -eq "session") {
                 $sess = $type[1]
+                Write-Debug "session $sess read in"
             }
             elseif ($type[0] -eq "category") {
                 $cat = $type[1]
                 $global:node_cats[$sess] = $cat 
+                Write-Debug "set cat for $sess to $cat"
                 if ($global:categories -notcontains $cat) {
                     $global:categories += $cat
+                    Write-Debug "added $cat to categories"
                 }
             }
             
@@ -124,6 +132,8 @@ function refresh_cat_list {
 # rebuild_tree
 function rebuild_tree {
 
+    Write-Debug "`n`n*** Rebuilding tree"
+
     # remove existing item nodes
     $tree.Nodes.Clear()
 
@@ -144,7 +154,7 @@ function rebuild_tree {
 
     $global:categories | Sort-Object | get-unique | ForEach-Object {
         $cat = $_ 
-        write-debug "  Category: $cat"
+        Write-Debug "  Category: $cat"
         if ($cat -ne "Favourites" -and $cat -ne "none") {
 
             Write-Debug "      $cat not none/Faves"
@@ -153,7 +163,7 @@ function rebuild_tree {
                 Write-Debug "      $cat is in node-cats"
                 $existing_cat_node = $tree.Nodes.find($cat, $true)
                 if (-not $existing_cat_node) {  
-                    Write-Debug "         not found will create"
+                    Write-debug "         not found will create"
                     $newcatnode = New-Object System.Windows.Forms.TreeNode
                     $newcatnode.Text = $cat
                     $newcatnode.Name = $cat
@@ -161,24 +171,29 @@ function rebuild_tree {
                     [void] $tree.Nodes.Add($newcatnode)
                 }
                 else {
-                    Write-Debug "         found will not create"
+                    Write-debug "         found will not create"
                 
                 }
             }
             else {
-                Write-Debug "      $cat is NOT in node-cats"
+                Write-debug "      $cat is NOT in node-cats"
             }
-            Write-Debug "`n`n`n"
+            Write-debug "`n`n`n"
         }
         else {
-            Write-Debug "      $cat not eligible for node creation"
+            Write-debug "      $cat not eligible for node creation"
         }
     }
 
     foreach ($sess in $global:sessions) {
-        write-debug "Adding node - Session=[$sess] cat=[$($node_cats[$sess])]"
+        write-debug "Adding node - Session=[$sess] cat=[$($global:node_cats[$sess])]"
 
-        add_node $tree.Nodes  $($global:node_cats[$sess]) $sess
+        $cat = $($global:node_cats[$sess])
+        if ($null -eq $cat ) {
+            $cat = "none"
+        }
+
+        add_node $tree.Nodes $cat $sess    
     }
 
 }
@@ -384,8 +399,8 @@ function add_node {
 
 # DebugPreference determines whether Write-Debug statements get 
 # output or not
-#$DebugPreference = "SilentlyContinue"
-$DebugPreference = "Continue"
+$DebugPreference = "SilentlyContinue"
+#$DebugPreference = "Continue"
 
 # path to putty
 $puttypath = 'C:\Program Files\PuTTY'
