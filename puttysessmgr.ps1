@@ -17,8 +17,8 @@ function cleanup {
     $txtbox.remove_KeyDown($txtbox_KeyDown)
 }
 
-# Paul-Debug - write a debug message conditional on a 'code'
-function Paul-Debug {
+# PaulDebug - write a debug message conditional on a 'code'
+function PaulDebug {
     param([string] $dbg_code,
         [string] $message)
     
@@ -39,18 +39,18 @@ function save_config {
         $global:config_filename = prompt_for_file "Config file " "Settings files|*.ini|All Files|*.*" $def_filename              
     }
 
-    paul-debug "XX" "`n`nSAVE_CONFIG - writing new file"
-    paul-debug "XX" "writing [putty_exe]"
+    PaulDebug "XX" "`n`nSAVE_CONFIG - writing new file"
+    PaulDebug "XX" "writing [putty_exe]"
     "[putty_exe]" | Out-File $global:config_filename
-    paul-debug "XX" "saving p_e=$global:putty_exe"
+    PaulDebug "XX" "saving p_e=$global:putty_exe"
     $global:putty_exe | Out-File $global:config_filename -Append
-    paul-debug "XX" "writing [sessions]"
+    PaulDebug "XX" "writing [sessions]"
     "[sessions]" | Out-File $global:config_filename -Append
-    paul-debug "XX" "`n`nPAUL - header done`n`n"
+    PaulDebug "XX" "`n`nPAUL - header done`n`n"
     $global:node_cats.GetEnumerator() | ForEach-Object {
         $cat = $_.Value 
         $sess = $_.Key
-        paul-debug "XX" "save_config: cat: $cat Sess: $sess"
+        PaulDebug "XX" "save_config: cat: $cat Sess: $sess"
         "session=$sess" | Out-File $global:config_filename -Append
         "category=$cat" | Out-File $global:config_filename -Append
     }
@@ -58,7 +58,7 @@ function save_config {
 
 function load_config {
 
-    paul-debug "LC" "`n`n***load_config"
+    PaulDebug "LC" "`n`n***load_config"
 
     if ($global:config_filename -eq "") {
         $def_filename_path = $Env:USERPROFILE
@@ -67,7 +67,7 @@ function load_config {
         }
         $def_filename = $def_filename_path + '\puttysessmgr.ini'
         $global:config_filename = prompt_for_file "Config file " "Settings files|*.ini|All Files|*.*" $def_filename        
-        paul-debug "LC" "set config_filename to $global:config_filename"
+        PaulDebug "LC" "set config_filename to $global:config_filename"
     }
 
     $global:node_cats.Clear()
@@ -77,21 +77,21 @@ function load_config {
     Get-Content $global:config_filename | ForEach-Object {
         if ($script:section -eq "putty_exe" -and $script:section[0] -ne '[' -and $global:putty_exe -eq "unset") {
             $global:putty_exe = $_ 
-            paul-debug "LC" "putty_exe set to $global:putty_exe"
+            PaulDebug "LC" "putty_exe set to $global:putty_exe"
         }
         elseif ($script:section -eq "sessions") {
             $type = $_.split("=")
             if ($type[0] -eq "session") {
                 $sess = $type[1]
-                paul-debug "LC" "session $sess read in"
+                PaulDebug "LC" "session $sess read in"
             }
             elseif ($type[0] -eq "category") {
                 $cat = $type[1]
                 $global:node_cats[$sess] = $cat 
-                paul-debug "LC" "set cat for $sess to $cat"
+                PaulDebug "LC" "set cat for $sess to $cat"
                 if ($global:categories -notcontains $cat) {
                     $global:categories += $cat
-                    paul-debug "LC" "added $cat to categories"
+                    PaulDebug "LC" "added $cat to categories"
                 }
             }
             
@@ -142,7 +142,7 @@ function refresh_cat_list {
 # rebuild_tree
 function rebuild_tree {
 
-    paul-debug "XX" "`n`n*** Rebuilding tree"
+    PaulDebug "XX" "`n`n*** Rebuilding tree"
 
     # remove existing item nodes
     $tree.Nodes.Clear()
@@ -154,7 +154,7 @@ function rebuild_tree {
 
     # add a node for each category
     if ($global:categories -contains "Favourites") {
-        paul-debug "XX" "  Category: Favourites"
+        PaulDebug "XX" "  Category: Favourites"
         $newcatnode = New-Object System.Windows.Forms.TreeNode
         $newcatnode.Text = "Favourites"
         $newcatnode.Name = "Favourites"
@@ -164,16 +164,16 @@ function rebuild_tree {
 
     $global:categories | Sort-Object | get-unique | ForEach-Object {
         $cat = $_ 
-        paul-debug "XX" "  Category: $cat"
+        PaulDebug "XX" "  Category: $cat"
         if ($cat -ne "Favourites" -and $cat -ne "none") {
 
-            paul-debug "XX" "      $cat not none/Faves"
+            PaulDebug "XX" "      $cat not none/Faves"
 
             if ($global:node_cats.ContainsValue($cat)) {
-                paul-debug "XX" "      $cat is in node-cats"
+                PaulDebug "XX" "      $cat is in node-cats"
                 $existing_cat_node = $tree.Nodes.find($cat, $true)
                 if (-not $existing_cat_node) {  
-                    paul-debug "XX" "         not found will create"
+                    PaulDebug "XX" "         not found will create"
                     $newcatnode = New-Object System.Windows.Forms.TreeNode
                     $newcatnode.Text = $cat
                     $newcatnode.Name = $cat
@@ -181,22 +181,22 @@ function rebuild_tree {
                     [void] $tree.Nodes.Add($newcatnode)
                 }
                 else {
-                    paul-debug "XX" "         found will not create"
+                    PaulDebug "XX" "         found will not create"
                 
                 }
             }
             else {
-                paul-debug "XX" "      $cat is NOT in node-cats"
+                PaulDebug "XX" "      $cat is NOT in node-cats"
             }
-            paul-debug "XX" "`n`n`n"
+            PaulDebug "XX" "`n`n`n"
         }
         else {
-            paul-debug "XX" "      $cat not eligible for node creation"
+            PaulDebug "XX" "      $cat not eligible for node creation"
         }
     }
 
     foreach ($sess in $global:sessions) {
-        paul-debug "XX" "Adding node - Session=[$sess] cat=[$($global:node_cats[$sess])]"
+        PaulDebug "XX" "Adding node - Session=[$sess] cat=[$($global:node_cats[$sess])]"
 
         $cat = $($global:node_cats[$sess])
         if ($null -eq $cat ) {
@@ -255,7 +255,7 @@ function prompt_for_file {
 
     $default_dir = Split-Path -Path $default -Parent
 
-    paul-debug "XX" "prompt_for_file: default_dir = $default_dir"
+    PaulDebug "XX" "prompt_for_file: default_dir = $default_dir"
 
     $prompt_openfile = New-Object System.Windows.Forms.OpenFileDialog
     $prompt_openfile.title = $title
@@ -264,7 +264,7 @@ function prompt_for_file {
     $prompt_openfile.ShowHelp = $True 
 
     $result = $prompt_openfile.ShowDialog()
-    paul-debug "XX" "prompt_for_file: result = $result"
+    PaulDebug "XX" "prompt_for_file: result = $result"
     if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         return $prompt_openfile.FileName
     } else {
@@ -288,31 +288,31 @@ function rightclick {
         $cat = ''
     }
 
-    paul-debug "XX" "right-click on: $nodetext (cat=$cat)"
+    PaulDebug "XX" "right-click on: $nodetext (cat=$cat)"
 
     $cc_return = choose_cat
     $cc_status = $cc_return[0]
     $chosen_cat = $cc_return[1]
 
-    paul-debug "XX" "PAUL:rightclick:choose_cat returned: $cc_status $chosen_cat"
+    PaulDebug "XX" "PAUL:rightclick:choose_cat returned: $cc_status $chosen_cat"
     if ($cc_status -eq "cancel") {
-        paul-debug "XX" "right-click cancel returned from choose_cat"
+        PaulDebug "XX" "right-click cancel returned from choose_cat"
         return $false
     }
     
     if ($cc_status -eq "new") {
         $prompt_msg = 'Enter category for ' + $nodetext + ':'
         $text = prompt 'Category' $prompt_msg $cat
-        paul-debug "XX" "entered text = [$text]"
+        PaulDebug "XX" "entered text = [$text]"
         $chosen_cat = $text 
     }
 
     if ($chosen_cat -eq '' -or $chosen_cat -eq $orig_cat ) {
-        paul-debug "XX" "Not changing cat"
+        PaulDebug "XX" "Not changing cat"
         $has_changed = $false 
     }
     else {
-        paul-debug "XX" "Change cat for $nodetext to $chosen_cat"
+        PaulDebug "XX" "Change cat for $nodetext to $chosen_cat"
         $has_changed = $true 
         $global:node_cats[$nodetext] = $chosen_cat
       
@@ -332,12 +332,12 @@ function launch {
     $tag = $node.Tag
     $name = $node.Name
 
-    paul-debug "XX" "launch: node=[$name] tag=[$tag] from=[$from]"
+    PaulDebug "XX" "launch: node=[$name] tag=[$tag] from=[$from]"
 
     # if this is a session launch it in putty
     if ($tag -eq 'item') {
         $sess_name = $node.Text
-        paul-debug "XX" "Launching: $global:putty_exe -load $sess_name"
+        PaulDebug "XX" "Launching: $global:putty_exe -load $sess_name"
         & $global:putty_exe -load $sess_name
        
     }
@@ -357,7 +357,7 @@ function launch {
 
     # if this is "Open Putty" then just launch putty (with no session)
     if ($tag -eq 'openputty') {
-        paul-debug "XX" "Launching: $global:putty_exe"
+        PaulDebug "XX" "Launching: $global:putty_exe"
         & $global:putty_exe
     }
 }
@@ -380,19 +380,19 @@ function add_node {
     }
     
     if ($category -eq 'none') {
-        paul-debug "XX" "$name has no category, adding to root node"
+        PaulDebug "XX" "$name has no category, adding to root node"
         [void] $rootnode.Add($newnode) 
     }
     else {
-        paul-debug "XX" "Searching for node called $category"
+        PaulDebug "XX" "Searching for node called $category"
         $addto_node = $rootnode | Where-Object { $_.Name -eq $category }
 
         if ($addto_node) {
-            paul-debug "XX" "found node with $category"
+            PaulDebug "XX" "found node with $category"
             [void] $addto_node.Nodes.Add($newnode) 
         }
         else {
-            paul-debug "XX" 'adding new category node $category'
+            PaulDebug "XX" 'adding new category node $category'
             $newcatnode = New-Object System.Windows.Forms.TreeNode
             $newcatnode.Text = $category
             $newcatnode.Name = $category
@@ -418,7 +418,7 @@ $DebugPreference = "Continue"
 #
 # This affects the write-debug builtin function and is therefore
 # a global setting.
-# Use Paul-debug <code> <message> for debug which can be switched
+# Use PaulDebug <code> <message> for debug which can be switched
 # on individually (via code)
 
 # debug_codes is a list of codes for which debug is switched on
@@ -442,8 +442,9 @@ if ($putty_icon) {
     $Form.Icon = $putty_icon
 }
 else {
-    paul-debug "XX" "No icon"
+    PaulDebug "YY" "No icon"
 }
+$Form.icon = $putty_icon
 
 # $tree is the treeview
 $tree = New-Object System.Windows.Forms.TreeView
