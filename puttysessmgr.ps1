@@ -4,6 +4,9 @@
 #               Created initial version
 # 01-Jul-2019 - Paul Mason #13 
 #               Implement keyboard shortcut for launch
+param (
+    [bool]$confirm = $false 
+)
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -12,6 +15,13 @@ Add-Type -AssemblyName System.Drawing
 # this is a function because we can be called from the close
 # button or by quitting the form
 function cleanup {
+    if ($global:changes) {
+        $ans = [System.Windows.Forms.MessageBox]::Show('Changes have been made, save config?','Save Config Filename?','YesNo')
+        if ($ans -eq "Yes") {
+                save_config
+            }
+        $global:changes = $false
+    }
     $prompt_form.close()
     $cat_list_form.Close()
     $txtbox.remove_KeyDown($txtbox_KeyDown)
@@ -36,6 +46,11 @@ function PaulDebug {
 # save_config - save current config to file
 
 function save_config {
+    
+    PaulDebug "YY" $false "`n`nSAVE_CONFIG - config file $global:config_filename"
+    
+    $orig_cf = $global:config_filename
+
     if ($global:config_filename -eq "") {
         $def_filename_path = $Env:USERPROFILE
         if ($def_filename_path -eq "") {
@@ -45,12 +60,15 @@ function save_config {
     } else {
         $def_filename =$global:config_filename
     }
-  
+    PaulDebug "YY" $false "def_filename for dialog $def_filename"
+    
     $global:config_filename = prompt_for_file $True "Config file " "Settings files|*.ini|All Files|*.*" $def_filename              
 
-    Write-Host $global:config_filename
+    if ($global:config_filename -eq "") {
+        return 
+    }
     
-    PaulDebug "YY" $false "`n`nSAVE_CONFIG - writing new file"
+    PaulDebug "YY" $false "writing new file $global:config_filename"
     PaulDebug "YY" $false "writing [putty_exe]"
     "[putty_exe]" | Out-File $global:config_filename
     PaulDebug "YY" $false "saving p_e=$global:putty_exe"
@@ -67,14 +85,24 @@ function save_config {
     }
 
     # save filename to registry
-    if (-not(Test-Path 'Registry::HKEY_CURRENT_USER\Software\Paul Mason')) {
-        New-Item -Path 'Registry::HKEY_CURRENT_USER\Software' -Name 'Paul Mason'
-    }
-    if (-not(Test-Path 'Registry::HKEY_CURRENT_USER\Software\Paul Mason\puttysessmgr')) {
-        New-Item -Path 'Registry::HKEY_CURRENT_USER\Software\Paul Mason' -Name 'puttysessmgr'
-    }
+    if ($orig_cf -ne $global:config_filename) {
+        if ($orig_cf -eq "") {
+            $question = "Save config filename to registry?"
+        } else {
+            $question = "Config filename has changed, save to registry?"
+        }
+        $ans = [System.Windows.Forms.MessageBox]::Show($question,'Save Config Filename?','YesNo')
+        if ($ans -eq "Yes") {
+            if (-not(Test-Path 'Registry::HKEY_CURRENT_USER\Software\Paul Mason')) {
+                New-Item -Path 'Registry::HKEY_CURRENT_USER\Software' -Name 'Paul Mason'
+            }
+            if (-not(Test-Path 'Registry::HKEY_CURRENT_USER\Software\Paul Mason\puttysessmgr')) {
+                New-Item -Path 'Registry::HKEY_CURRENT_USER\Software\Paul Mason' -Name 'puttysessmgr'
+            }
 
-    Set-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\Software\Paul Mason\puttysessmgr' -Name config_filename -Value $global:config_filename
+            Set-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\Software\Paul Mason\puttysessmgr' -Name config_filename -Value $global:config_filename
+        }
+    }
      
 }
 
@@ -94,7 +122,7 @@ function load_config {
         $global:config_filename = prompt_for_file $True "Config file " "Settings files|*.ini|All Files|*.*" $def_filename        
         PaulDebug "LC" $false "set config_filename to $global:config_filename"
     }
-
+    PaulDebug "LC" $false "loading config from $global:config_filename"
     $global:node_cats.Clear()
     $global:categories.Clear()
     $script:section = ""
@@ -282,8 +310,6 @@ function prompt_for_file {
     $default_dir = Split-Path -Path $default -Parent
     $default_file = Split-Path -Path $default -Leaf 
 
-    $dummy = [System.Windows.Forms.MessageBox]::Show($default_file,'default filename')
-
     if ($save) {
         $prompt_openfile = New-Object System.Windows.Forms.SaveFileDialog        
     } else {
@@ -446,8 +472,8 @@ function add_node {
 #  SilentlyContinue - no messages
 #  Continue         - messages
 #
-#$DebugPreference = "SilentlyContinue"
-$DebugPreference = "Continue"
+$DebugPreference = "SilentlyContinue"
+#$DebugPreference = "Continue"
 #
 # This affects the write-debug builtin function and is therefore
 # a global setting.
@@ -455,30 +481,55 @@ $DebugPreference = "Continue"
 # on individually (via code)
 
 # debug_codes is a list of codes for which debug is switched on
-$global:debug_codes = @("YY","LC")
-$global:debug_codes.Count
+# $global:debug_codes = @("YY","LC")
+$global:debug_codes = @()
 
 #TODO - check registry first
 
 # path to putty
-$puttypath = 'C:\Program Files\PuTTY'
-$global:putty_exe = $puttypath + '\putty.exe'
-$global:putty_exe 
+$save_putty_to_reg = $false
+if (Test-Path 'Registry::HKEY_CURRENT_USER\Software\Paul Mason\puttysessmgr') {
+    $global:putty_exe = Get-ItemPropertyValue 'Registry::HKEY_CURRENT_USER\Software\Paul Mason\puttysessmgr' -Name putty_exe 
+    if ($global:putty_exe -eq "") {
+        $global:putty_exe = 'C:\Program Files\PuTTY123\putty.exe'        
+        $save_putty_to_reg = $true
+    }
+}
+
 
 if (-not (Test-Path $global:putty_exe)) {
-    PaulDebug "YY" $false "Putty does not exist!!"
-    [System.Windows.Forms.MessageBox]::Show('Can''t find putty executable:'+$global:putty_exe,'Missing putty executable','OK','Error')
-    Exit
+    [System.Windows.Forms.MessageBox]::Show('Can''t find putty executable','Missing putty executable','OK','Error')
+    $def_filename = 'C:\Program Files\putty.exe'
+    $global:putty_exe = prompt_for_file $false "Putty executable " "Executable|*.exe|All Files|*.*" $def_filename              
+    $save_putty_to_reg = $true
+
+    if ($global:putty_exe -eq "") {
+        PaulDebug "YY" $false "Putty does not exist!!"
+        [System.Windows.Forms.MessageBox]::Show('Can''t find putty executable','Missing putty executable','OK','Error')
+        Exit
+    }
+    if (-not (Test-Path $global:putty_exe)) {
+        PaulDebug "YY" $false "Putty does not exist!!"
+        [System.Windows.Forms.MessageBox]::Show('Putty executable not found','Missing putty executable','OK','Error')
+        Exit
+    }
 }
 
-$global:config_filename = ""
+if ($save_putty_to_reg) {
+    $ans = [System.Windows.Forms.MessageBox]::Show('Save putty path to registry?','Save Putty Path?','YesNo')
+    if ($ans -eq "Yes") {
+        if (-not(Test-Path 'Registry::HKEY_CURRENT_USER\Software\Paul Mason')) {
+            New-Item -Path 'Registry::HKEY_CURRENT_USER\Software' -Name 'Paul Mason'
+        }
+        if (-not(Test-Path 'Registry::HKEY_CURRENT_USER\Software\Paul Mason\puttysessmgr')) {
+            New-Item -Path 'Registry::HKEY_CURRENT_USER\Software\Paul Mason' -Name 'puttysessmgr'
+        }
 
-# look for registry key for saved ini file
-if (Test-Path 'Registry::HKEY_CURRENT_USER\Software\Paul Mason\puttysessmgr') {
-    $global:config_filename = Get-ItemPropertyValue 'Registry::HKEY_CURRENT_USER\Software\Paul Mason\puttysessmgr' -Name config_filename 
-    [System.Windows.Forms.MessageBox]::Show($global:config_filename,'config filename')
-
+        Set-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\Software\Paul Mason\puttysessmgr' -Name putty_exe -Value $global:putty_exe
+    }
+    
 }
+
 # main form is $Form
 $Form = New-Object system.Windows.Forms.Form
 $Form.Size = New-Object System.Drawing.Size(400, 600)
@@ -538,10 +589,28 @@ foreach ($sess in $global:sessions) {
     $global:node_cats.add($sess, $cat) 
 }
 
+$global:config_filename = ""
+
+# look for registry key for saved ini file
+if (Test-Path 'Registry::HKEY_CURRENT_USER\Software\Paul Mason\puttysessmgr') {
+    $global:config_filename = Get-ItemPropertyValue 'Registry::HKEY_CURRENT_USER\Software\Paul Mason\puttysessmgr' -Name config_filename 
+    if ($global:config_filename -ne "") {
+        if ($confirm) {
+            $ans = [System.Windows.Forms.MessageBox]::Show('Do you want to reload saved config from '+$global:config_filename+'?','Puttysessmgr: Reload Config?','YesNo')
+        } else {
+            $ans = "Yes"
+        }
+        if ($ans -eq "Yes") {
+            load_config
+        }
+        PaulDebug "YY" $false "answer=$ans"
+    }
+}
 
 # start adding nodes to the treeview
 
 rebuild_tree 
+$global:changes = $false
 
 # set doubleclick to run launch() function
 $tree.add_MouseDoubleClick( {
@@ -556,6 +625,7 @@ $tree.add_NodeMouseClick( {
             if ($cat_changed) {
                 rebuild_tree
                 refresh_cat_list
+                $global:changes = $true
             }
         }
 
@@ -653,14 +723,14 @@ $txtbox.add_KeyDown($txtbox_KeyDown)
 
 # cat_list_form is the category list form
 $cat_list_form = New-Object system.Windows.Forms.Form
-$cat_list_form.Size = New-Object System.Drawing.Size(320, 200)
+$cat_list_form.Size = New-Object System.Drawing.Size(320, 300)
 $cat_list_form.Text = 'Choose a category'
 $cat_list_form.FormBorderStyle = 'FixedDialog'
 $cat_list_form.StartPosition = 'CenterParent'
 
 # OK button for cat list form
 $cl_OKbtn = New-Object System.Windows.Forms.Button
-$cl_OKbtn.Location = New-Object System.Drawing.Point(75, 120)
+$cl_OKbtn.Location = New-Object System.Drawing.Point(75, 220)
 $cl_OKbtn.Size = New-Object System.Drawing.Size(75, 23)
 $cl_OKbtn.Text = 'OK'
 $cl_OKbtn.DialogResult = [System.Windows.Forms.DialogResult]::OK
@@ -669,7 +739,7 @@ $cat_list_form.Controls.Add($cl_OKbtn)
 
 # cancel button for cat list form
 $cl_CnclBtn = New-Object System.Windows.Forms.Button
-$cl_CnclBtn.Location = New-Object System.Drawing.Point(150, 120)
+$cl_CnclBtn.Location = New-Object System.Drawing.Point(150, 220)
 $cl_CnclBtn.Size = New-Object System.Drawing.Size(75, 23)
 $cl_CnclBtn.Text = 'Cancel'
 $cl_CnclBtn.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
@@ -687,7 +757,7 @@ $cat_list_form.Controls.Add($cl_label)
 $cat_listBox = New-Object System.Windows.Forms.listBox
 $cat_listBox.Location = New-Object System.Drawing.Point(10, 40)
 $cat_listBox.Size = New-Object System.Drawing.Size(260, 20)
-$cat_listBox.Height = 80
+$cat_listBox.Height = 180
 
 # add categories to listbox
 refresh_cat_list
