@@ -464,6 +464,42 @@ function add_node {
     }
 }
 
+# (re-)read session list from registry
+function read_reg_sessions {
+
+
+$global:categories = @()
+$global:node_cats = @{ }
+$global:sessions = @()
+
+# List of sessions from the Putty registry key
+$global:sessions = Get-ChildItem -Path Registry::HKEY_CURRENT_USER\Software\SimonTatham\PuTTY\Sessions | `
+    ForEach-Object { split-path -leaf $_.Name } | `
+    ForEach-Object { [uri]::UnescapeDataString($_) }
+
+# build categories and node_cats from the sessions
+$i = 0 
+PaulDebug "RR" $false "`n`nread_reg_sessions - session list"
+foreach ($sess in $global:sessions) {
+    if ($i -lt 5) {
+        $cat = 'Favourites'
+    } 
+    else {
+        $cat = 'none'
+    }
+
+    $i += 1
+
+    if ($global:categories -notcontains $cat ) {
+        $global:categories += $cat
+    }
+    $global:node_cats.add($sess, $cat) 
+    PaulDebug "RR" $false "found $sess"
+}
+
+PaulDebug "RR" $false "`n`nread_reg_sessions - session list END`n`n"
+}
+
 # main script
 
 # DebugPreference determines whether Write-Debug statements get 
@@ -472,8 +508,8 @@ function add_node {
 #  SilentlyContinue - no messages
 #  Continue         - messages
 #
-$DebugPreference = "SilentlyContinue"
-#$DebugPreference = "Continue"
+#$DebugPreference = "SilentlyContinue"
+$DebugPreference = "Continue"
 #
 # This affects the write-debug builtin function and is therefore
 # a global setting.
@@ -482,7 +518,13 @@ $DebugPreference = "SilentlyContinue"
 
 # debug_codes is a list of codes for which debug is switched on
 # $global:debug_codes = @("YY","LC")
-$global:debug_codes = @()
+$global:debug_codes = @("MN")
+
+# categories is the category list
+[System.Collections.ArrayList]$global:categories = @()
+
+# node_cats maps nodes to their categories
+$global:node_cats = @{ }
 
 #TODO - check registry first
 
@@ -554,40 +596,11 @@ $tree.Location = '5,5'
 $tree.Text = 'Putty Sessions'
 $tree.Font = '"Consolas",10'
 
-# categories is the category list
-[System.Collections.ArrayList]$global:categories = @()
-# node_cats maps nodes to their categories
-$global:node_cats = @{ }
-
-
-
 # a couple of globals for which action launched launch
 $global:from_key = 1
 $global:from_mouse = 2
 
-# List of sessions from the Putty registry key
-$global:sessions = Get-ChildItem -Path Registry::HKEY_CURRENT_USER\Software\SimonTatham\PuTTY\Sessions | `
-    ForEach-Object { split-path -leaf $_.Name } | `
-    ForEach-Object { [uri]::UnescapeDataString($_) }
-
-
-# build categories and node_cats from the sessions
-$i = 0 
-foreach ($sess in $global:sessions) {
-    if ($i -lt 5) {
-        $cat = 'Favourites'
-    } 
-    else {
-        $cat = 'none'
-    }
-
-    $i += 1
-
-    if ($global:categories -notcontains $cat ) {
-        $global:categories += $cat
-    }
-    $global:node_cats.add($sess, $cat) 
-}
+read_reg_sessions
 
 $global:config_filename = ""
 
@@ -669,6 +682,7 @@ $reload_btn.Text = 'Reload'
 $reload_btn.Font = '"Arial",10'
 $Form.Controls.Add($reload_btn)
 $reload_btn.Add_Click( { 
+        read_reg_sessions
         load_config
         rebuild_tree
     })

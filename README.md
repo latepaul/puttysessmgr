@@ -18,6 +18,6 @@ See issues.
 
 ## Icon
 
-Icon by[GuillenDesign](http://guillendesign.deviantart.com)
+Icon by [GuillenDesign](http://guillendesign.deviantart.com)
 
 Used under [CC Attribution-Noncommercial-No Derivate 4.0 license](https://creativecommons.org/licenses/by-nc-nd/4.0/)
